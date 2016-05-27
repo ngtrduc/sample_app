@@ -1,6 +1,7 @@
 class User < ActiveRecord::Base
 	attr_accessor :remember_token, :activation_token, :reset_token
 
+	has_many :microposts, dependent: :destroy
 	before_save { self.email = email.downcase }
 	before_create :create_activation_digest
 	EMAIL_FORMAT_REGEX = /\A[\w+\-.]+@[a-z\d\-.]+\.[a-z]+\z/i
@@ -22,7 +23,7 @@ class User < ActiveRecord::Base
 	# Remembers a user in the database for use in persistent sessions.
 	def remember
 		self.remember_token = User.new_token
-		update_attributes(:remember_digest, User.digest(remember_token))
+		update_attributes(remember_digest: User.digest(remember_token))
 	end
 	# Returns true if the given token matches the digest.
 	def authenticated?(attribute, token)
@@ -30,15 +31,17 @@ class User < ActiveRecord::Base
 		return false if digest.nil?
 		BCrypt::Password.new(digest).is_password?(token)
 	end	
-	
+	def feed
+		Micropost.where("user_id = ?", id).order("created_at DESC")
+	end
 	def forget
-		update_attributes(:remember_digest, nil)
+		update_attributes(remember_digest: nil)
 	end
 
 	def create_reset_digest
 		self.reset_token = User.new_token
-		update_attributes(:reset_digest, User.digest(reset_token))
-		update_attributes(:reset_sent_at, Time.zone.now)
+		update_attributes(reset_digest: User.digest(reset_token))
+		update_attributes(reset_sent_at: Time.zone.now)
 	end
 
 	def create_activation_digest
@@ -55,8 +58,8 @@ class User < ActiveRecord::Base
 	end
 
 	def activate
-		update_attributes(:activated,true)
-		update_attributes(:activated_at, Time.zone.now)
+		update_attributes(activated: true)
+		update_attributes(activated_at: Time.zone.now)
 	end
 
 	def password_reset_expired?
